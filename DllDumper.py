@@ -151,12 +151,12 @@ def extract_icon():
     i = 0
     progress.config(maximum=len(large)*3)
     for ico in large:
-        hdc = win32gui.GetDC(0)
-        hbmp = win32gui.CreateCompatibleBitmap(hdc, 32, 32)
-        hdc = win32gui.CreateCompatibleDC(hdc)
-        win32gui.SelectObject(hdc,hbmp)
-        win32gui.FillRect(hdc,(0,0,32,32),win32ui.CreateBrush())
-        win32gui.DrawIcon(hdc,(0,0), ico)
+        hdc = win32ui.CreateDCFromHandle(win32gui.GetDC(0))
+        hbmp = win32ui.CreateBitmap()
+        hbmp.CreateCompatibleBitmap(hdc, 32, 32)
+        hdc = hdc.CreateCompatibleDC()
+        hdc.SelectObject(hbmp)
+        hdc.DrawIcon((0,0), ico)
         hbmp.SaveBitmapFile(hdc, f"Icons\\{i}_32.bmp")
         i+=1
         progress.step()
