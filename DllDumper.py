@@ -2,9 +2,10 @@ from tkinter import *
 import tkinter as tk
 from tkinter.ttk import *
 from tkinter.filedialog import askopenfilename,asksaveasfilename
-from subprocess import check_output
+from subprocess import *
 from tkinter import messagebox
 from PIL import Image, ImageTk
+import threading
 import win32ui
 import win32gui
 import os
@@ -20,6 +21,9 @@ top_menu = Menu()
 file_menu = Menu()
 functions_info = {}
 def load_dll():
+    global task
+    if task and task.is_alive():
+        task.join(0)
     global dll_path,functions_info,out
     functions_info.clear()
     dll = askopenfilename(filetypes=[("DLL", "*.dll"),("EXE","*.exe"),("All Files", "*.*")])
@@ -65,7 +69,7 @@ def load_dll():
             info.config(text=f"\"{os.path.split(dll_path)[1]}\" 中没有函数")
             info.place(relx=0.5,y=50,anchor=CENTER)
             
-    except IndexError:
+    except ValueError:
         messagebox.showinfo("提示",f"\"{os.path.split(dll_path)[1]}\" 中没有函数")
         info.config(text=f"\"{os.path.split(dll_path)[1]}\" 中没有函数")
         info.place(relx=0.5,y=50,anchor=CENTER)
@@ -78,7 +82,7 @@ def copy(content):
     text.destroy()
 file_menu.add_command(label="加载DLL...",command=load_dll)
 out = ""
-def disassembly(id=0):
+def threaded_disassembly(id=0):
     global out
     if not(dll_path):
         return messagebox.showerror("错误","请先加载DLL")
@@ -95,7 +99,7 @@ def disassembly(id=0):
     text.tag_config("BreakPoint",foreground="red",selectforeground="white",selectbackground="red")
     top.update()
     if not out:
-        out = check_output((dumpbin,dll_path,"/nologo","/disasm:WIDE")).decode("GBK",errors="replace").splitlines()[5:]
+        out=check_output((dumpbin,dll_path,"/nologo","/disasm:WIDE")).decode("gbk")
     text.delete(1.0,END)
     move = True
     ln = 1.0
@@ -128,6 +132,12 @@ def disassembly(id=0):
         menu.add_command(label="在必应上搜索...",command=lambda:os.system("explorer \"https://www.bing.com/search?q=%s\""%text.get(SEL_FIRST,SEL_LAST)))
         menu.post(event.x_root, event.y_root)
     text.bind("<Button-3>",contextmenu)
+task = None
+def disassembly(id=0):
+    global task
+    if not task or not task.is_alive():
+        task = threading.Thread(target=threaded_disassembly,args=(id,))
+        task.start()
 file_menu.add_command(label="反编译这个DLL...",command=disassembly)
 file_menu.add_command(label="反编译函数...",command=lambda:disassembly(int(functions.item(functions.selection()[0])["values"][1])))
 photos = []
@@ -148,8 +158,13 @@ def extract_icon():
             os.remove(f"Icons\\{i}")
     except:
         os.makedirs("Icons")
-    iconcount = win32gui.ExtractIcon(root.winfo_id(), dll_path, -1)
-    large, small = win32gui.ExtractIconEx(dll_path, 0, iconcount)
+    try:
+        iconcount = win32gui.ExtractIcon(root.winfo_id(), dll_path, -1)
+        large, small = win32gui.ExtractIconEx(dll_path, 0, iconcount)
+    except Exception as e:
+        top.destroy()
+        messagebox.showerror("错误",e.args[-1])
+        return
     i = 0
     progress.config(maximum=len(large)+1)
     for ico in large:
@@ -173,7 +188,9 @@ def extract_icon():
             simg = Image.open("Icons\\"+i)
             img = ImageTk.PhotoImage(simg)
             photos.append(img)
-            button = tk.Button(top,image=img,relief=FLAT,background="white",activebackground="white",borderwidth=0,highlightthickness=0, command=lambda: simg.save(asksaveasfilename(defaultextension=".bmp",filetypes=[("BMP",".bmp")],parent=top)))
+            button = tk.Button(top,image=img,relief=FLAT,background="white",activebackground="white",borderwidth=0,
+                               highlightthickness=0, 
+command=lambda: simg.save(asksaveasfilename(defaultextension=".bmp",filetypes=[("BMP",".bmp"),("JPG",".jpg"),("PNG", ".png")],parent=top)))
             text.window_create(END, window=button,padx=5,pady=5)
             progress.step()
     text.config(state=DISABLED,selectbackground="white")
