@@ -3,12 +3,16 @@ from tkinter.ttk import *
 from tkinter.filedialog import askopenfilename
 from subprocess import check_output
 from tkinter import messagebox
+from PIL import Image, ImageTk
+import win32ui
+import win32gui
 import os
 def fix_problems():
     for i in globals().items():
         if isinstance(i[1],Menu):
             i[1].config(tearoff=False)
-dll_path = ""
+#dll_path = ""
+dll_path = "C:/Windows/System32/shell32.dll"
 dumpbin = os.path.split(__file__)[0]+"\\Tool\\dumpbin.exe"
 root = Tk()
 root.title("DllDumper")
@@ -126,6 +130,67 @@ def disassembly(id=0):
     text.bind("<Button-3>",contextmenu)
 file_menu.add_command(label="反编译这个DLL...",command=disassembly)
 file_menu.add_command(label="反编译函数...",command=lambda:disassembly(int(functions.item(functions.selection()[0])["values"][1])))
+photos = []
+def extract_icon():
+    photos.clear()
+    if not(dll_path):
+        return messagebox.showerror("错误","请先加载DLL")
+    top = Toplevel()
+    msg = Label(top,text="正在反编译...")
+    msg.pack(fill=X)
+    progress = Progressbar(top)
+    progress.pack(fill=X)
+    top.update()
+    try:
+        for i in os.listdir("Icons"):
+            os.remove(f"Icons\\{i}")
+    except:
+        os.makedirs("Icons")
+    iconcount = win32gui.ExtractIcon(root.winfo_id(), dll_path, -1)
+    large, small = win32gui.ExtractIconEx(dll_path, 0, iconcount)
+    i = 0
+    progress.config(maximum=len(large)*3)
+    for ico in large:
+        hdc = win32gui.GetDC(0)
+        hbmp = win32gui.CreateCompatibleBitmap(hdc, 32, 32)
+        hdc = win32gui.CreateCompatibleDC(hdc)
+        win32gui.SelectObject(hdc,hbmp)
+        win32gui.FillRect(hdc,(0,0,32,32),win32ui.CreateBrush())
+        win32gui.DrawIcon(hdc,(0,0), ico)
+        hbmp.SaveBitmapFile(hdc, f"Icons\\{i}_32.bmp")
+        i+=1
+        progress.step()
+        top.update()
+        win32gui.DestroyIcon(ico)
+    for ico in small:
+        hdc = win32ui.CreateDCFromHandle(win32gui.GetDC(0))
+        hbmp = win32ui.CreateBitmap()
+        hbmp.CreateCompatibleBitmap(hdc, 16, 16)
+        hdc = hdc.CreateCompatibleDC()
+        hdc.SelectObject(hbmp)
+        hdc.DrawIcon((0,0), ico)
+        hbmp.SaveBitmapFile(hdc, f"Icons\\{i}_16.bmp")
+        i+=1
+        progress.step()
+        top.update()
+        win32gui.DestroyIcon(ico)
+    text = Text(top)
+    for i in os.listdir("Icons"):
+        if i.endswith("_32.bmp"):
+            simg = Image.open("Icons\\"+i)
+            img = ImageTk.PhotoImage(simg)
+            photos.append(img)
+            btn = Button(top,image=img,compound=LEFT,width=1)
+            btn.place(width=40,height=40)
+            text.window_create(END, window=btn)
+            progress.step()
+    msg.destroy()
+    progress.destroy()
+    text.pack(fill=BOTH,expand=True,side=LEFT)
+    scroll = Scrollbar(top, command=text.yview, orient=VERTICAL)
+    scroll.pack(side=RIGHT,fill=Y)
+    text.config(yscrollcommand=scroll.set)
+file_menu.add_command(label="反编译图标...",command=extract_icon)
 top_menu.add_cascade(label="文件", menu=file_menu)
 edit_menu = Menu()
 edit_menu.add_command(label="复制函数名称",command=lambda:copy(functions.item(functions.selection()[0])["values"][0]))
