@@ -1,6 +1,7 @@
 from tkinter import *
+import tkinter as tk
 from tkinter.ttk import *
-from tkinter.filedialog import askopenfilename
+from tkinter.filedialog import askopenfilename,asksaveasfilename
 from subprocess import check_output
 from tkinter import messagebox
 from PIL import Image, ImageTk
@@ -11,8 +12,7 @@ def fix_problems():
     for i in globals().items():
         if isinstance(i[1],Menu):
             i[1].config(tearoff=False)
-#dll_path = ""
-dll_path = "C:/Windows/System32/shell32.dll"
+dll_path = ""
 dumpbin = os.path.split(__file__)[0]+"\\Tool\\dumpbin.exe"
 root = Tk()
 root.title("DllDumper")
@@ -136,6 +136,8 @@ def extract_icon():
     if not(dll_path):
         return messagebox.showerror("错误","请先加载DLL")
     top = Toplevel()
+    top.geometry("400x200")
+    top.title("反编译图标")
     msg = Label(top,text="正在反编译...")
     msg.pack(fill=X)
     progress = Progressbar(top)
@@ -149,13 +151,14 @@ def extract_icon():
     iconcount = win32gui.ExtractIcon(root.winfo_id(), dll_path, -1)
     large, small = win32gui.ExtractIconEx(dll_path, 0, iconcount)
     i = 0
-    progress.config(maximum=len(large)*3)
+    progress.config(maximum=len(large)+1)
     for ico in large:
         hdc = win32ui.CreateDCFromHandle(win32gui.GetDC(0))
         hbmp = win32ui.CreateBitmap()
         hbmp.CreateCompatibleBitmap(hdc, 32, 32)
         hdc = hdc.CreateCompatibleDC()
         hdc.SelectObject(hbmp)
+        win32gui.FillRect(hdc.GetHandleAttrib(), (0,0,32,32), win32gui.CreateSolidBrush(0xffffff))
         hdc.DrawIcon((0,0), ico)
         hbmp.SaveBitmapFile(hdc, f"Icons\\{i}_32.bmp")
         i+=1
@@ -163,27 +166,17 @@ def extract_icon():
         top.update()
         win32gui.DestroyIcon(ico)
     for ico in small:
-        hdc = win32ui.CreateDCFromHandle(win32gui.GetDC(0))
-        hbmp = win32ui.CreateBitmap()
-        hbmp.CreateCompatibleBitmap(hdc, 16, 16)
-        hdc = hdc.CreateCompatibleDC()
-        hdc.SelectObject(hbmp)
-        hdc.DrawIcon((0,0), ico)
-        hbmp.SaveBitmapFile(hdc, f"Icons\\{i}_16.bmp")
-        i+=1
-        progress.step()
-        top.update()
         win32gui.DestroyIcon(ico)
-    text = Text(top)
+    text = Text(top,borderwidth=0,width=0)
     for i in os.listdir("Icons"):
         if i.endswith("_32.bmp"):
             simg = Image.open("Icons\\"+i)
             img = ImageTk.PhotoImage(simg)
             photos.append(img)
-            btn = Button(top,image=img,compound=LEFT,width=1)
-            btn.place(width=40,height=40)
-            text.window_create(END, window=btn)
+            button = tk.Button(top,image=img,relief=FLAT,background="white",activebackground="white",borderwidth=0,highlightthickness=0, command=lambda: simg.save(asksaveasfilename(defaultextension=".bmp",filetypes=[("BMP",".bmp")],parent=top)))
+            text.window_create(END, window=button,padx=5,pady=5)
             progress.step()
+    text.config(state=DISABLED,selectbackground="white")
     msg.destroy()
     progress.destroy()
     text.pack(fill=BOTH,expand=True,side=LEFT)
